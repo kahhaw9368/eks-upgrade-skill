@@ -16,41 +16,31 @@ Open the cloned folder as your working directory in Claude Code.
 
 ### Step 2: Install MCP Servers
 
-This skill requires the EKS MCP server to interact with your cluster. Configure the following MCP servers in `.claude/settings.json`:
+This skill requires the [AWS-managed EKS MCP server (preview)](https://aws.amazon.com/blogs/containers/introducing-the-fully-managed-amazon-eks-mcp-server-preview/) to interact with your cluster. Create a `.mcp.json` file in the project root:
 
 ```json
 {
   "mcpServers": {
-    "awslabs.eks-mcp-server": {
+    "eks-mcp": {
       "command": "uvx",
-      "args": ["awslabs.eks-mcp-server@latest"],
-      "env": {
-        "FASTMCP_LOG_LEVEL": "ERROR"
-      }
-    },
-    "awslabs.aws-documentation-mcp-server": {
-      "command": "uvx",
-      "args": ["awslabs.aws-documentation-mcp-server@latest"],
-      "env": {
-        "FASTMCP_LOG_LEVEL": "ERROR"
-      }
+      "args": [
+        "mcp-proxy-for-aws@latest",
+        "https://eks-mcp.us-west-2.api.aws/mcp",
+        "--service",
+        "eks-mcp",
+        "--profile",
+        "default",
+        "--region",
+        "us-west-2"
+      ]
     }
   }
 }
 ```
 
+Replace `--profile` and `--region` values to match your AWS environment.
+
 > **Prerequisites:** Python 3.10+ and uv installed ([Install uv](https://docs.astral.sh/uv/getting-started/installation/))
-
-#### Using a specific AWS profile or region
-
-If your EKS cluster is in a specific account/region, set environment variables before running Claude Code:
-
-```bash
-export AWS_PROFILE=your-profile-name
-export AWS_REGION=us-west-2
-```
-
-Or add to the MCP server's `env` section.
 
 ### Step 3: Verify Prerequisites
 
