@@ -1,0 +1,94 @@
+{
+  "addons": [
+    {
+      "name": "istio",
+      "identifiers": {
+        "app_names": ["istio", "istiod", "istio-ingressgateway", "istio-egressgateway"],
+        "helm_charts": ["istiod", "istio-base", "istio-ingress", "istio-egress"],
+        "container_images": ["docker.io/istio/pilot", "docker.io/istio/proxyv2", "gcr.io/istio-release/pilot"]
+      },
+      "compatibility": [
+        {"addon_version_range": {"min": "1.17.0", "max": "1.17.99"}, "k8s_version_range": {"min": "1.25", "max": "1.28"}},
+        {"addon_version_range": {"min": "1.18.0", "max": "1.18.99"}, "k8s_version_range": {"min": "1.25", "max": "1.29"}},
+        {"addon_version_range": {"min": "1.19.0", "max": "1.19.99"}, "k8s_version_range": {"min": "1.26", "max": "1.30"}},
+        {"addon_version_range": {"min": "1.20.0", "max": "1.20.99"}, "k8s_version_range": {"min": "1.27", "max": "1.31"}},
+        {"addon_version_range": {"min": "1.21.0", "max": "1.21.99"}, "k8s_version_range": {"min": "1.27", "max": "1.31"}},
+        {"addon_version_range": {"min": "1.22.0", "max": "1.22.99"}, "k8s_version_range": {"min": "1.28", "max": "1.32"}}
+      ]
+    },
+    {
+      "name": "cert-manager",
+      "identifiers": {
+        "app_names": ["cert-manager", "cert-manager-cainjector", "cert-manager-webhook"],
+        "helm_charts": ["cert-manager"],
+        "container_images": ["quay.io/jetstack/cert-manager-controller", "quay.io/jetstack/cert-manager-cainjector", "quay.io/jetstack/cert-manager-webhook"]
+      },
+      "compatibility": [
+        {"addon_version_range": {"min": "1.12.0", "max": "1.12.99"}, "k8s_version_range": {"min": "1.25", "max": "1.30"}},
+        {"addon_version_range": {"min": "1.13.0", "max": "1.13.99"}, "k8s_version_range": {"min": "1.25", "max": "1.31"}},
+        {"addon_version_range": {"min": "1.14.0", "max": "1.14.99"}, "k8s_version_range": {"min": "1.26", "max": "1.32"}},
+        {"addon_version_range": {"min": "1.15.0", "max": "1.15.99"}, "k8s_version_range": {"min": "1.27", "max": "1.32"}},
+        {"addon_version_range": {"min": "1.16.0", "max": "1.16.99"}, "k8s_version_range": {"min": "1.28", "max": "1.32"}}
+      ]
+    },
+    {
+      "name": "ingress-nginx",
+      "identifiers": {
+        "app_names": ["ingress-nginx", "nginx-ingress-controller"],
+        "helm_charts": ["ingress-nginx"],
+        "container_images": ["registry.k8s.io/ingress-nginx/controller", "k8s.gcr.io/ingress-nginx/controller"]
+      },
+      "compatibility": [
+        {"addon_version_range": {"min": "1.8.0", "max": "1.8.99"}, "k8s_version_range": {"min": "1.25", "max": "1.28"}},
+        {"addon_version_range": {"min": "1.9.0", "max": "1.9.99"}, "k8s_version_range": {"min": "1.25", "max": "1.29"}},
+        {"addon_version_range": {"min": "1.10.0", "max": "1.10.99"}, "k8s_version_range": {"min": "1.26", "max": "1.30"}},
+        {"addon_version_range": {"min": "1.11.0", "max": "1.11.99"}, "k8s_version_range": {"min": "1.27", "max": "1.31"}},
+        {"addon_version_range": {"min": "1.12.0", "max": "1.12.99"}, "k8s_version_range": {"min": "1.28", "max": "1.32"}}
+      ]
+    },
+    {
+      "name": "kube-prometheus-stack",
+      "identifiers": {
+        "app_names": ["kube-prometheus-stack", "prometheus", "prometheus-operator", "alertmanager", "grafana"],
+        "helm_charts": ["kube-prometheus-stack", "prometheus-community"],
+        "container_images": ["quay.io/prometheus/prometheus", "quay.io/prometheus-operator/prometheus-operator", "quay.io/prometheus/alertmanager"]
+      },
+      "compatibility": [
+        {"addon_version_range": {"min": "48.0.0", "max": "48.99.99"}, "k8s_version_range": {"min": "1.25", "max": "1.28"}},
+        {"addon_version_range": {"min": "51.0.0", "max": "51.99.99"}, "k8s_version_range": {"min": "1.26", "max": "1.29"}},
+        {"addon_version_range": {"min": "55.0.0", "max": "55.99.99"}, "k8s_version_range": {"min": "1.26", "max": "1.30"}},
+        {"addon_version_range": {"min": "58.0.0", "max": "58.99.99"}, "k8s_version_range": {"min": "1.27", "max": "1.31"}},
+        {"addon_version_range": {"min": "61.0.0", "max": "61.99.99"}, "k8s_version_range": {"min": "1.28", "max": "1.32"}}
+      ]
+    },
+    {
+      "name": "argocd",
+      "identifiers": {
+        "app_names": ["argocd", "argocd-server", "argocd-repo-server", "argocd-application-controller"],
+        "helm_charts": ["argo-cd", "argocd"],
+        "container_images": ["quay.io/argoproj/argocd", "ghcr.io/argoproj/argocd"]
+      },
+      "compatibility": [
+        {"addon_version_range": {"min": "2.7.0", "max": "2.7.99"}, "k8s_version_range": {"min": "1.25", "max": "1.28"}},
+        {"addon_version_range": {"min": "2.8.0", "max": "2.8.99"}, "k8s_version_range": {"min": "1.25", "max": "1.29"}},
+        {"addon_version_range": {"min": "2.9.0", "max": "2.9.99"}, "k8s_version_range": {"min": "1.26", "max": "1.30"}},
+        {"addon_version_range": {"min": "2.10.0", "max": "2.10.99"}, "k8s_version_range": {"min": "1.27", "max": "1.31"}},
+        {"addon_version_range": {"min": "2.11.0", "max": "2.11.99"}, "k8s_version_range": {"min": "1.27", "max": "1.31"}},
+        {"addon_version_range": {"min": "2.12.0", "max": "2.12.99"}, "k8s_version_range": {"min": "1.28", "max": "1.32"}}
+      ]
+    },
+    {
+      "name": "external-dns",
+      "identifiers": {
+        "app_names": ["external-dns"],
+        "helm_charts": ["external-dns"],
+        "container_images": ["registry.k8s.io/external-dns/external-dns", "k8s.gcr.io/external-dns/external-dns", "bitnami/external-dns"]
+      },
+      "compatibility": [
+        {"addon_version_range": {"min": "0.13.0", "max": "0.13.99"}, "k8s_version_range": {"min": "1.25", "max": "1.29"}},
+        {"addon_version_range": {"min": "0.14.0", "max": "0.14.99"}, "k8s_version_range": {"min": "1.26", "max": "1.31"}},
+        {"addon_version_range": {"min": "0.15.0", "max": "0.15.99"}, "k8s_version_range": {"min": "1.27", "max": "1.32"}}
+      ]
+    }
+  ]
+}

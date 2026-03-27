@@ -1,0 +1,374 @@
+# Report Generation
+
+## Purpose
+After all assessment checks are complete, calculate the readiness score and generate the upgrade assessment report.
+
+## Step 1: Calculate Readiness Score
+
+You MUST follow this algorithm exactly. Do NOT interpret loosely. Every rule below is deterministic.
+
+### 1.1 — Scoring Algorithm (Pseudocode)
+
+```
+score = 100
+
+# --- Category 1: Breaking Changes (max deduction: 25) ---
+# COUNTING UNIT: each distinct breaking change TYPE that affects at least one resource.
+# Example: "FlowSchema v1beta2 removed" = 1 item (even if 17 FlowSchema resources use it).
+# Example: "PSP removed" = 1 item (even if 5 PSPs exist).
+breaking_changes_deduction = 0
+for each breaking_change_type found in cluster:
+    if severity == HIGH:   breaking_changes_deduction += 10
+    if severity == MEDIUM: breaking_changes_deduction += 4
+    if severity == LOW:    breaking_changes_deduction += 2
+breaking_changes_deduction = min(breaking_changes_deduction, 25)
+
+# --- Category 2: Deprecated APIs (max deduction: 20) ---
+# COUNTING UNIT: each distinct API path (e.g., flowschemas and prioritylevelconfigurations
+# are 2 separate API paths even though they share the same API group).
+# Count API paths, NOT individual resources using that path.
+deprecated_apis_deduction = 0
+for each deprecated_api_path found in cluster:
+    if removed_in_target_version:    deprecated_apis_deduction += 5
+    if deprecated_but_still_served:  deprecated_apis_deduction += 1
+deprecated_apis_deduction = min(deprecated_apis_deduction, 20)
+
+# --- Category 3: Node Version Skew (max deduction: 20) ---
+# COUNTING UNIT: each node group (not individual nodes).
+node_skew_deduction = 0
+for each node_group:
+    skew = target_minor_version - node_group_minor_version
+    if skew > 2:  node_skew_deduction += 20   # blocker — immediately caps
+    if skew == 2: node_skew_deduction += 5
+node_skew_deduction = min(node_skew_deduction, 20)
+
+# --- Category 4: Add-on Compatibility (max deduction: 15) ---
+# COUNTING UNIT: each add-on (by name).
+# CLASSIFICATION RULES:
+#   - "critical add-on" = vpc-cni, coredns, kube-proxy, aws-ebs-csi-driver
+#   - "optional add-on" = all other managed add-ons
+#   - Status DEGRADED or FAILED with correct version = treat as critical/optional
+#     incompatible (same deduction as version incompatibility)
+#   - Status ACTIVE but version behind = "update recommended"
+addon_deduction = 0
+for each addon:
+    if addon.status in [DEGRADED, FAILED] or addon.version_incompatible_with_target:
+        if addon.name in [vpc-cni, coredns, kube-proxy, aws-ebs-csi-driver]:
+            addon_deduction += 5   # critical add-on
+        else:
+            addon_deduction += 3   # optional add-on
+    elif addon.version_behind_but_compatible:
+        addon_deduction += 1       # update recommended
+addon_deduction = min(addon_deduction, 15)
+
+# --- Category 5: Karpenter (max deduction: 10) ---
+# COUNTING UNIT: binary — installed and incompatible, or not.
+karpenter_deduction = 0
+if karpenter_installed and karpenter_version_incompatible_with_target:
+    karpenter_deduction = 10
+
+# --- Category 6: Workload Risks (max deduction: 10) ---
+# COUNTING UNIT: each individual Deployment/StatefulSet/DaemonSet affected.
+# Only count workloads in non-system namespaces (exclude: kube-system, kube-public,
+# kube-node-lease, karpenter, amazon-cloudwatch, amazon-guardduty).
+# A single workload can trigger MULTIPLE risk types — count each risk separately.
+#
+# HIGH-severity risks (3 pts each, sub-cap 8 pts):
+#   - Deployment with replicas == 1
+#   - Deployment with strategy.type == Recreate
+#
+# MEDIUM-severity risks (1 pt each, sub-cap 4 pts):
+#   - Deployment missing readinessProbe on ANY container
+#   - Deployment missing resources.requests (cpu or memory) on ANY container
+#   - Multi-replica Deployment without a matching PodDisruptionBudget
+#
+# IMPORTANT: If one workload has BOTH single-replica AND missing probes,
+# that is 1 HIGH (3 pts) + 1 MEDIUM (1 pt) = 4 pts for that workload.
+workload_high = 0
+workload_medium = 0
+for each workload in non_system_namespaces:
+    if workload.replicas == 1:                workload_high += 3
+    if workload.strategy == "Recreate":       workload_high += 3
+    if workload.missing_readiness_probe:      workload_medium += 1
+    if workload.missing_resource_requests:    workload_medium += 1
+    if workload.replicas > 1 and no_matching_pdb: workload_medium += 1
+workload_high = min(workload_high, 8)
+workload_medium = min(workload_medium, 4)
+workload_deduction = min(workload_high + workload_medium, 10)
+
+# --- Category 7: AWS Upgrade Insights (max deduction: 10) ---
+# COUNTING UNIT: each insight ID from the EKS Insights API.
+# Map insight status to severity:
+#   FAILING → 5 pts
+#   WARNING → 2 pts
+#   ERROR   → 3 pts
+#   PASSING → 0 pts
+#   UNKNOWN → 0 pts
+insights_deduction = 0
+for each insight:
+    if insight.status == "FAILING":  insights_deduction += 5
+    if insight.status == "WARNING":  insights_deduction += 2
+    if insight.status == "ERROR":    insights_deduction += 3
+insights_deduction = min(insights_deduction, 10)
+
+# --- Category 8: AL2 Nodes (max deduction: 5) ---
+# COUNTING UNIT: count of individual AL2 nodes.
+al2_deduction = 0
+al2_node_count = count of nodes where osImage contains "Amazon Linux 2" (not "2023")
+                 or kernelVersion contains "amzn2"
+if al2_node_count > 0:
+    al2_deduction = 2 + (al2_node_count // 3)   # integer division
+al2_deduction = min(al2_deduction, 5)
+
+# --- Category 9: Behavioral Changes (max deduction: 5) ---
+# COUNTING UNIT: each distinct behavioral change TYPE that applies to the target version.
+behavioral_deduction = 0
+for each behavioral_change applicable to target:
+    if severity == MEDIUM: behavioral_deduction += 2
+    if severity == LOW:    behavioral_deduction += 1
+behavioral_deduction = min(behavioral_deduction, 5)
+
+# --- Final Score ---
+total_deductions = (breaking_changes_deduction + deprecated_apis_deduction
+                    + node_skew_deduction + addon_deduction + karpenter_deduction
+                    + workload_deduction + insights_deduction + al2_deduction
+                    + behavioral_deduction)
+score = max(0, 100 - total_deductions)
+```
+
+### 1.2 — Score Interpretation
+
+| Score | Rating | Meaning |
+|-------|--------|---------|
+| 90-100 | READY | Safe to proceed with upgrade |
+| 80-89 | GOOD | Minor issues, can proceed with caution |
+| 70-79 | FAIR | Several issues need attention before upgrade |
+| 60-69 | RISKY | Significant issues, upgrade not recommended yet |
+| 0-59 | NOT READY | Critical blockers, must resolve before upgrade |
+
+### 1.3 — Worked Example
+
+Cluster: `example-cluster`, upgrading 1.30 → 1.31
+
+**Findings:**
+- EBS CSI driver DEGRADED (IAM issue) → critical add-on, status DEGRADED → 5 pts
+- 17 FlowSchema resources using `flowcontrol.apiserver.k8s.io/v1beta3` (2 API paths: flowschemas + prioritylevelconfigurations, deprecated but available in 1.31) → 1 + 1 = 2 pts
+- 1 AWS Insight WARNING (deprecated APIs for v1.32) → 2 pts
+- `legacy-app`: 1 replica (HIGH=3) + Recreate strategy (HIGH=3) + missing probes (MED=1) + missing requests (MED=1) = 8 pts
+- `single-replica-app`: 1 replica (HIGH=3) + missing probes (MED=1) + missing requests (MED=1) = 5 pts
+- `recreate-app`: Recreate strategy (HIGH=3) + missing probes (MED=1) = 4 pts
+- `no-resources-app`: missing probes (MED=1) + missing requests (MED=1) = 2 pts
+- `insufficient-replicas-app`: missing probes (MED=1) = 1 pt
+- `karpenter-test-app`: missing probes (MED=1) = 1 pt
+
+**Workload risk calculation:**
+- HIGH sub-total: 3+3+3+3 = 12 → capped at 8
+- MEDIUM sub-total: 1+1+1+1+1+1+1+1+1+1 = 10 → capped at 4
+- Workload total: 8+4 = 12 → capped at 10
+
+**Score:**
+```
+100 - 0 (breaking) - 2 (deprecated) - 0 (skew) - 5 (addon) - 0 (karpenter)
+    - 10 (workload) - 2 (insights) - 0 (AL2) - 0 (behavioral)
+= 100 - 19 = 81% → GOOD
+```
+
+## Step 2: Build Master Finding List (MANDATORY — do this BEFORE calculating the score)
+
+Before calculating the score, you MUST compile a complete finding table. This table is the single source of truth for scoring. Every row must map to exactly one line in the pseudocode above.
+
+```
+| # | Category | Finding | Counting Unit | Severity | Pts | Rule Applied |
+|---|----------|---------|---------------|----------|-----|--------------|
+| 1 | Deprecated APIs | flowschemas v1beta3 | API path | LOW | 1 | deprecated_but_still_served |
+| 2 | Deprecated APIs | prioritylevelconfigurations v1beta3 | API path | LOW | 1 | deprecated_but_still_served |
+| 3 | Add-on | aws-ebs-csi-driver DEGRADED | add-on | HIGH | 5 | critical addon DEGRADED |
+| ... | ... | ... | ... | ... | ... | ... |
+```
+
+After building this table:
+1. Sum each category column
+2. Apply the per-category cap from the pseudocode
+3. Sum all capped category totals
+4. Subtract from 100
+
+Include this table in the report under "Score Breakdown" so users can audit the math.
+
+## Step 3: Consistency Checks (MANDATORY)
+
+1. Every HIGH/CRITICAL finding must appear in "Blockers & Critical Actions"
+2. Every MEDIUM finding must appear in "Recommended Actions"
+3. The executive summary must match the findings — don't call something critical if it's medium
+4. Score components must add up correctly
+5. **CROSS-CHECK RULE:** Before writing any count (e.g., "5 deployments missing probes"),
+   go back to the raw data and list the names. If the count of names doesn't match the number
+   in your heading, fix it. Never write a count from memory.
+6. **NO HALLUCINATED NUMBERS:** For any dollar amount, percentage, or numeric claim, show the
+   arithmetic inline or in a comment. If you can't show the math, don't state the number.
+7. **WORKLOAD TABLE REQUIRED:** The master workload table from `workload-risks.md` Step A
+   MUST be produced before any workload risk findings are written. All workload counts in the
+   report must be traceable to rows in that table.
+
+## Step 4: Write the Report
+
+### Filename Format
+`EKS-Upgrade-Assessment-<cluster>-<current>-to-<target>-<YYYY-MM-DD>-<HHMM>.md`
+
+Example: `EKS-Upgrade-Assessment-my-cluster-1.30-to-1.31-2026-03-26-1430.md`
+
+### Report Template
+
+```markdown
+# EKS Upgrade Readiness Assessment
+
+| Field | Value |
+|-------|-------|
+| Cluster | [name] |
+| Region | [region] |
+| Account | [account-id] |
+| Current Version | [current] |
+| Target Version | [target] |
+| Assessment Date | [YYYY-MM-DD HH:MM] |
+
+---
+
+## Readiness Score: [XX]% — [READY/GOOD/FAIR/RISKY/NOT READY]
+
+[2-3 sentence summary. What's the bottom line? Can they upgrade safely?]
+
+### Score Breakdown
+
+| Category | Status | Deduction | Details |
+|----------|--------|-----------|---------|
+| Breaking Changes | ✅/⚠️/❌ | -X pts | [summary] |
+| Deprecated APIs | ✅/⚠️/❌ | -X pts | [summary] |
+| Node Version Skew | ✅/⚠️/❌ | -X pts | [summary] |
+| Add-on Compatibility | ✅/⚠️/❌ | -X pts | [summary] |
+| Karpenter | ✅/⚠️/❌/N/A | -X pts | [summary] |
+| Workload Risks | ✅/⚠️/❌ | -X pts | [summary] |
+| AWS Upgrade Insights | ✅/⚠️/❌ | -X pts | [summary] |
+| AL2 / AMI | ✅/⚠️/❌ | -X pts | [summary] |
+| Behavioral Changes | ✅/⚠️/❌ | -X pts | [summary] |
+| **Total** | | **-X pts** | **Score: XX%** |
+
+---
+
+## Blockers & Critical Actions
+
+[Items that MUST be resolved before upgrading. Empty section if none.]
+
+### [Finding Title]
+- **Severity:** HIGH/CRITICAL
+- **What we found:** [specific to this cluster]
+- **Impact if not addressed:** [real-world consequence]
+- **Remediation:**
+  ```bash
+  [pre-filled command with actual cluster name and region]
+  ```
+- **Reference:** [AWS doc link]
+
+---
+
+## Recommended Actions
+
+[Items that SHOULD be addressed but won't block the upgrade.]
+
+### [Finding Title]
+- **Severity:** MEDIUM
+- **What we found:** [details]
+- **Remediation:** [steps]
+
+---
+
+## Informational Findings
+
+[LOW severity items and behavioral changes — awareness only.]
+
+---
+
+## Upgrade Plan
+
+[Step-by-step upgrade sequence with pre-filled commands.]
+
+### Pre-Upgrade Checklist
+- [ ] All blockers resolved
+- [ ] Add-ons updated to compatible versions
+- [ ] Node groups ready (AL2023/Bottlerocket)
+- [ ] PDBs in place for critical workloads
+- [ ] Backup/snapshot taken
+
+### Step 1: Update Add-ons (if needed)
+```bash
+aws eks update-addon --cluster-name [CLUSTER] --addon-name [ADDON] --addon-version [VERSION] --region [REGION]
+```
+
+### Step 2: Upgrade Control Plane
+```bash
+aws eks update-cluster-version --name [CLUSTER] --kubernetes-version [TARGET] --region [REGION]
+```
+
+### Step 3: Monitor Upgrade Progress
+```bash
+aws eks describe-update --name [CLUSTER] --update-id [UPDATE_ID] --region [REGION]
+```
+
+### Step 4: Upgrade Node Groups
+```bash
+aws eks update-nodegroup-version --cluster-name [CLUSTER] --nodegroup-name [NODEGROUP] --region [REGION]
+```
+
+### Step 5: Verify
+```bash
+kubectl get nodes
+kubectl get pods -A | grep -v Running | grep -v Completed
+```
+
+---
+
+## AWS Reference Links
+
+[All links verified via web search or AWS documentation. Do NOT fabricate URLs.]
+
+---
+
+## Add-on Inventory
+
+| Add-on | Type | Version | Status | Compatible |
+|--------|------|---------|--------|------------|
+| [name] | Managed/Self-managed | [ver] | [health] | ✅/⚠️/❌ |
+
+## Node Group Summary
+
+| Node Group | Version | AMI Type | Instances | Skew | Status |
+|------------|---------|----------|-----------|------|--------|
+| [name] | [ver] | [ami] | [min/max] | [N] | ✅/⚠️/❌ |
+
+## Workload Risk Summary
+
+| Risk | Severity | Count | Details |
+|------|----------|-------|---------|
+| Single replica deployments | HIGH | [N] | [names] |
+| Missing PDBs | MEDIUM | [N] | [names] |
+| Missing readiness probes | MEDIUM | [N] | [names] |
+| Missing resource requests | HIGH | [N]% | [percentage] |
+```
+
+## Step 5: Look Up AWS References
+
+Use web search or AWS documentation to find verified URLs. Prefer:
+- `https://docs.aws.amazon.com/eks/latest/best-practices/`
+- `https://docs.aws.amazon.com/eks/latest/userguide/`
+- `https://docs.aws.amazon.com/eks/latest/userguide/kubernetes-versions.html`
+
+Do NOT fabricate deep-link URLs. When in doubt, link to the broad section page.
+
+## Step 6: Write the Report File
+
+Write to the workspace root.
+
+## Step 7: Offer HTML Conversion
+
+After writing the markdown report, ask:
+*"Would you like me to convert the report to HTML? Run: `python3 tools/md_to_html.py <report-filename>.md`"*
+
+Do NOT generate HTML manually. Always use the conversion script.

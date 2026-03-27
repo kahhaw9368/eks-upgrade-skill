@@ -1,6 +1,6 @@
-# EKS Upgrade Readiness Skill
+# EKS Upgrade Readiness Skill for Claude Code
 
-A Claude Skill that assesses your EKS cluster's readiness for a Kubernetes version upgrade. Connects to your live cluster via the AWS-managed EKS MCP server, curated promots, runs automated checks, calculates a readiness score (0-100%), and generates a detailed report with pre-filled AWS CLI commands.
+A Claude Code skill that assesses your EKS cluster's readiness for a Kubernetes version upgrade. Connects to your live cluster via AWS CLI and kubectl, runs automated checks, calculates a readiness score (0-100%), and generates a detailed report with pre-filled AWS CLI commands.
 
 Upgrade with confidence. Know exactly what will break before you hit the button — deprecated APIs, incompatible add-ons, node version skew, workload risks. No surprises, no rollbacks, no 2 AM pages. Just a clear, prioritized action plan that turns a stressful upgrade into a routine maintenance window.
 
@@ -12,13 +12,11 @@ Upgrade with confidence. Know exactly what will break before you hit the button 
 git clone https://github.com/kahhaw9368/eks-upgrade-power.git
 ```
 
-Open the cloned folder in your IDE as your workspace.
+Open the cloned folder as your working directory in Claude Code.
 
-### Step 2: Install MCP Servers
+### Step 2: (Optional) Install MCP Servers
 
-This skill requires two MCP servers. You need to configure them at the **workspace level** so they don't interfere with any MCP servers you already have configured globally.
-
-Create the file `.kiro/settings/mcp.json` in this workspace (Kiro may have already created the `.kiro` folder):
+This skill works with AWS CLI and kubectl out of the box. For enhanced functionality, you can optionally configure two MCP servers in `.claude/settings.json`:
 
 ```json
 {
@@ -28,43 +26,31 @@ Create the file `.kiro/settings/mcp.json` in this workspace (Kiro may have alrea
       "args": ["awslabs.eks-mcp-server@latest"],
       "env": {
         "FASTMCP_LOG_LEVEL": "ERROR"
-      },
-      "disabled": false,
-      "autoApprove": []
+      }
     },
     "awslabs.aws-documentation-mcp-server": {
       "command": "uvx",
       "args": ["awslabs.aws-documentation-mcp-server@latest"],
       "env": {
         "FASTMCP_LOG_LEVEL": "ERROR"
-      },
-      "disabled": false,
-      "autoApprove": [
-        "search_documentation",
-        "read_documentation",
-        "read_sections",
-        "recommend"
-      ]
+      }
     }
   }
 }
 ```
 
-> **Why workspace level?** Kiro merges MCP configs with this precedence: user-level (`~/.kiro/settings/mcp.json`) < workspace-level (`.kiro/settings/mcp.json`). If you already have MCP servers configured globally, workspace-level configs are additive — they won't overwrite your existing servers. However, if you already have the EKS MCP server configured globally with custom settings (like a specific `AWS_PROFILE`), the workspace config will take precedence for this workspace only. Your global config remains untouched.
-
-> **Already have these MCP servers?** If you already have `awslabs.eks-mcp-server` and `awslabs.aws-documentation-mcp-server` configured (globally or in another workspace), you can skip this step. Just make sure they're accessible from this workspace.
+> **Prerequisites for MCP servers:** Python 3.10+ and uv installed ([Install uv](https://docs.astral.sh/uv/getting-started/installation/))
 
 #### Using a specific AWS profile or region
 
-If your EKS cluster is in a specific account/region, add to the `env` section of the EKS MCP server:
+If your EKS cluster is in a specific account/region, set environment variables before running Claude Code:
 
-```json
-"env": {
-  "AWS_PROFILE": "your-profile-name",
-  "AWS_REGION": "us-west-2",
-  "FASTMCP_LOG_LEVEL": "ERROR"
-}
+```bash
+export AWS_PROFILE=your-profile-name
+export AWS_REGION=us-west-2
 ```
+
+Or add to the MCP server's `env` section if using MCP servers.
 
 ### Step 3: Verify Prerequisites
 
@@ -83,16 +69,22 @@ The script checks:
 - EKS API permissions (list, describe clusters/nodegroups/addons/insights)
 - EC2 permissions (describe subnets)
 - IAM permissions (list role policies)
-- Python 3.10+ and uv installed (required for MCP servers)
+- Python 3.10+ and uv installed (required for MCP servers, optional otherwise)
 
 ### Step 4: Run the Assessment
 
-Open Kiro and ask:
+In Claude Code, invoke the skill:
+
+```
+/eks-upgrade
+```
+
+Or simply ask:
 
 > "Run an EKS upgrade readiness assessment"
 
-The power will:
-1. Discover your clusters via the EKS MCP server
+The skill will:
+1. Discover your clusters via AWS CLI
 2. Ask which cluster and target version
 3. Run 8 assessment areas against your live cluster
 4. Calculate a readiness score (0-100%)
@@ -103,7 +95,7 @@ The power will:
 
 ## Required AWS Permissions
 
-The IAM principal (user or role) running Kiro needs these permissions. This is a **read-only** policy — the power never modifies your cluster.
+The IAM principal (user or role) running Claude Code needs these permissions. This is a **read-only** assessment — the skill never modifies your cluster.
 
 ### Minimum IAM Policy
 
@@ -155,7 +147,7 @@ The IAM principal (user or role) running Kiro needs these permissions. This is a
 
 ### Kubernetes RBAC
 
-The EKS MCP server also needs Kubernetes API access to list pods, deployments, services, etc. This is handled through your EKS access configuration:
+The skill also needs Kubernetes API access to list pods, deployments, services, etc. This is handled through your EKS access configuration:
 
 - **EKS API mode (recommended):** Your IAM principal needs an EKS Access Entry with the `AmazonEKSClusterAdminPolicy` or `AmazonEKSAdminViewPolicy` access policy.
 - **ConfigMap mode:** Your IAM principal needs to be mapped in the `aws-auth` ConfigMap with a group that has cluster read access.
@@ -170,8 +162,6 @@ aws eks update-kubeconfig --name <cluster-name> --region <region>
 kubectl get nodes
 kubectl get pods -A
 ```
-
-If `kubectl get nodes` works, the EKS MCP server will also work — it uses the same credential chain.
 
 ---
 
@@ -210,35 +200,41 @@ Both files are written to the workspace root.
 ## Project Structure
 
 ```
-eks-upgrade-power/
-├── POWER.md                          # Power definition & agent workflow
-├── README.md                         # This file
+eks-upgrade-skill/
+├── POWER.md                              # Original Kiro power definition (preserved)
+├── README.md                             # This file
 ├── .gitignore
-├── steering/                         # Assessment logic (agent instructions)
-│   ├── version-validation.md         # Version calendar, upgrade path, skew
-│   ├── breaking-changes.md           # Per-version breaking changes (1.25→1.35)
-│   ├── deprecated-apis.md            # Deprecated API detection rules
-│   ├── addon-compatibility.md        # Core + OSS + Karpenter checks
-│   ├── node-readiness.md             # Node group & AMI assessment
-│   ├── workload-risks.md             # Workload resilience during upgrade
-│   ├── upgrade-insights.md           # AWS official pre-upgrade checks
-│   └── report-generation.md          # Score algorithm & report template
-├── tools/
-│   ├── md_to_html.py                 # Markdown → HTML converter
-│   └── check_permissions.sh          # Pre-flight permission validator
-└── data/
-    └── oss_addon_matrix.json         # OSS add-on compatibility matrix
+├── .claude/
+│   ├── settings.local.json               # Claude Code permissions
+│   └── skills/
+│       └── eks-upgrade/                  # Claude Code skill
+│           ├── SKILL.md                  # Skill definition & workflow
+│           ├── steering/                 # Assessment logic (agent instructions)
+│           │   ├── version-validation.md
+│           │   ├── breaking-changes.md
+│           │   ├── deprecated-apis.md
+│           │   ├── addon-compatibility.md
+│           │   ├── node-readiness.md
+│           │   ├── workload-risks.md
+│           │   ├── upgrade-insights.md
+│           │   └── report-generation.md
+│           ├── data/
+│           │   └── oss_addon_matrix.json
+│           └── tools/
+│               ├── check_permissions.sh
+│               └── md_to_html.py
+├── steering/                             # Original steering files (preserved)
+├── tools/                                # Original tools (preserved)
+└── data/                                 # Original data files (preserved)
 ```
 
 ## Troubleshooting
 
-### MCP server not responding
+### Cannot list clusters
 
-1. In Kiro: open the MCP Servers panel → check if the EKS server shows as "running"
-2. Toggle the server off and on
-3. Verify prerequisites: `python3 --version` (need 3.10+) and `uv --version`
-4. Check credentials: `aws sts get-caller-identity`
-5. Test manually: `uvx awslabs.eks-mcp-server@latest`
+1. Check credentials: `aws sts get-caller-identity`
+2. Check region: `aws eks list-clusters --region <region>`
+3. Run permission check: `./tools/check_permissions.sh`
 
 ### Permission denied errors
 
@@ -255,11 +251,13 @@ It will tell you exactly which permissions are missing.
 - Check your `AWS_PROFILE` — you may be in the wrong account
 - Verify: `aws eks list-clusters --region <region>`
 
-### kubectl works but MCP server can't access Kubernetes API
+### kubectl works but can't access Kubernetes API
 
-The MCP server uses the same credential chain as kubectl. If kubectl works but the MCP server doesn't:
-- Ensure `AWS_PROFILE` and `AWS_REGION` are set in the MCP server's `env` config
-- The MCP server runs in its own process — it doesn't inherit your shell environment
+Ensure your kubeconfig is up to date:
+```bash
+aws eks update-kubeconfig --name <cluster-name> --region <region>
+kubectl get nodes
+```
 
 ---
 
