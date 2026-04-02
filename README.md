@@ -1,27 +1,14 @@
 # EKS Upgrade Readiness Skill
 
-[![License](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](LICENSE)
+[![License](https://img.shields.io/badge/License-Apache%202.0-brightgreen.svg)](LICENSE)
 [![Python](https://img.shields.io/badge/Python-3.10%2B-blue.svg)](https://www.python.org/)
 [![Claude Code](https://img.shields.io/badge/Claude%20Code-Skill-7C3AED.svg)](https://claude.ai/claude-code)
 
-A [Claude Code](https://claude.ai/claude-code) skill that assesses your EKS cluster's readiness for a Kubernetes version upgrade. It connects to a live cluster via the [AWS-managed EKS MCP server](https://docs.aws.amazon.com/eks/latest/userguide/eks-mcp-introduction.html), runs automated checks across 8 areas, calculates a readiness score (0–100%), and generates a detailed report with pre-filled AWS CLI commands.
+A [Claude Code](https://claude.ai/claude-code) skill that performs automated EKS upgrade readiness assessments. It connects to a live EKS cluster, runs checks across 8 assessment areas, calculates a readiness score (0–100%), and generates a detailed report with pre-filled AWS CLI commands.
 
-All operations are **read-only** — the skill does not modify your cluster.
+Checks are informed by the [EKS Best Practices Guide](https://docs.aws.amazon.com/eks/latest/best-practices/) and [EKS User Guide](https://docs.aws.amazon.com/eks/latest/userguide/). All operations are **read-only** — the skill does not modify your cluster.
 
-<p align="center">
-  <img src="docs/sample-report-1.png" alt="Sample EKS Upgrade Readiness Report — Summary and Score Breakdown" width="720">
-</p>
-
-<details>
-<summary><strong>More sample report screenshots</strong></summary>
-<br>
-<p align="center">
-  <img src="docs/sample-report-2.png" alt="Sample EKS Upgrade Readiness Report — Blockers and Remediation" width="720">
-</p>
-<p align="center">
-  <img src="docs/sample-report-3.png" alt="Sample EKS Upgrade Readiness Report — Upgrade Plan" width="720">
-</p>
-</details>
+![Sample EKS Upgrade Readiness Report](docs/sample-report-summary.png)
 
 ## Table of Contents
 
@@ -60,7 +47,7 @@ Then run:
 /eks-upgrade
 ```
 
-The skill discovers your EKS clusters, asks you to pick one and a target version, runs the assessment, and generates a report with a readiness score and step-by-step upgrade plan.
+The skill discovers your EKS clusters, asks which cluster and target version, and walks you through the assessment.
 
 ### Verify Prerequisites
 
@@ -76,26 +63,30 @@ Run the permission check script to validate everything is set up correctly:
 
 ## What Gets Assessed
 
-| # | Area | Checks |
-|---|------|--------|
-| 01 | Breaking Changes | Per-version API removals, behavioral changes, resource impact |
-| 02 | Deprecated APIs | Live scan of cluster resources + AWS Upgrade Insights |
-| 03 | Node Version Skew | AMI type (AL2 → AL2023), container runtime, version skew policy |
-| 04 | Add-on Compatibility | Core EKS add-ons, OSS add-ons (via matrix), health status |
-| 05 | Karpenter | Version compatibility, CRD API migration (v1beta1 → v1) |
-| 06 | Workload Risks | Single replicas, missing PDBs, health probes, resource requests, Recreate strategy |
+| # | Area | Examples |
+|---|------|----------|
+| 01 | Version Validation | Upgrade path validity, version skew policy, support status & cost |
+| 02 | Breaking Changes | Per-version API removals, behavioral changes, resource impact |
+| 03 | Deprecated APIs | Live scan of cluster resources + AWS Upgrade Insights |
+| 04 | Add-on Compatibility | Core EKS add-ons, OSS add-ons (via matrix), Karpenter |
+| 05 | Node Readiness | AMI type (AL2→AL2023), container runtime, self-managed nodes |
+| 06 | Workload Risks | Single replicas, missing PDBs, health probes, resource requests |
 | 07 | AWS Upgrade Insights | Official EKS pre-upgrade checks and recommendations |
-| 08 | Behavioral Changes | Default setting changes, feature gate graduations |
+| 08 | Upgrade Plan | Pre-filled CLI commands with your cluster name and region |
+
+**Sample findings detail**
+
+![Detailed Findings by Section](docs/sample-report-findings.png)
 
 ## Readiness Score
 
 | Score | Level | Meaning |
 |-------|-------|---------|
 | 90–100 | READY | Safe to proceed |
-| 80–89 | GOOD | Minor issues — can proceed with caution |
+| 80–89 | GOOD | Minor issues, can proceed with caution |
 | 70–79 | FAIR | Several issues need attention first |
-| 60–69 | RISKY | Significant issues — not recommended yet |
-| 0–59 | NOT READY | Critical blockers — must resolve first |
+| 60–69 | RISKY | Significant issues, not recommended yet |
+| 0–59 | NOT READY | Critical blockers, must resolve first |
 
 ## Output
 
@@ -104,16 +95,28 @@ Reports are generated in the workspace root:
 | Format | Filename |
 |--------|----------|
 | Markdown | `EKS-Upgrade-Assessment-<cluster>-<current>-to-<target>-<date>.md` |
-| HTML (optional) | Run `python3 tools/md_to_html.py <report>.md` (zero external dependencies) |
+| HTML (optional) | `EKS-Upgrade-Assessment-<cluster>-<current>-to-<target>-<date>.html` |
 
-Each report includes a readiness score with breakdown, blocker details with remediation commands, a pre-upgrade checklist, and a step-by-step upgrade plan with pre-filled AWS CLI commands for your cluster.
+Each report includes a readiness score, score breakdown, blockers & critical actions, per-section findings, and a step-by-step upgrade plan with pre-filled CLI commands.
+
+To convert to HTML: `python3 tools/md_to_html.py <report>.md` (zero external dependencies).
+
+**Sample upgrade plan**
+
+![Sample Upgrade Plan](docs/sample-report-upgrade-plan.png)
 
 ## MCP Server Setup
 
-This skill requires the [AWS-managed EKS MCP server (preview)](https://docs.aws.amazon.com/eks/latest/userguide/eks-mcp-introduction.html) to interact with your cluster. Configure it in `.mcp.json` at the project root.
+This skill uses MCP servers to interact with your cluster. Configure them in `.mcp.json` at the project root.
 
-<details open>
-<summary><strong>AWS-Managed EKS MCP Server</strong></summary>
+### EKS MCP Server
+
+**Option A: AWS-Managed EKS MCP Server (Recommended)**
+
+The [AWS-managed EKS MCP server](https://docs.aws.amazon.com/eks/latest/userguide/eks-mcp-introduction.html) is a hosted service with automatic updates, CloudTrail audit logging, and a built-in troubleshooting knowledge base.
+
+1. Attach the `AmazonEKSMCPReadOnlyAccess` managed policy to your IAM user/role.
+2. Update `.mcp.json` (replace `{region}` with your AWS region):
 
 ```json
 {
@@ -125,26 +128,71 @@ This skill requires the [AWS-managed EKS MCP server (preview)](https://docs.aws.
         "https://eks-mcp.{region}.api.aws/mcp",
         "--service", "eks-mcp",
         "--profile", "default",
-        "--region", "{region}"
+        "--region", "{region}",
+        "--read-only"
       ]
     }
   }
 }
 ```
 
-Replace `{region}` with your AWS region (e.g., `us-west-2`). See the [Getting Started guide](https://docs.aws.amazon.com/eks/latest/userguide/eks-mcp-getting-started.html) for full setup instructions.
+See the [Getting Started guide](https://docs.aws.amazon.com/eks/latest/userguide/eks-mcp-getting-started.html) for full setup instructions.
 
-</details>
+**Option B: Open-Source EKS MCP Server**
+
+The [awslabs.eks-mcp-server](https://github.com/awslabs/mcp) works out of the box with no additional IAM setup.
+
+```json
+{
+  "mcpServers": {
+    "awslabs.eks-mcp-server": {
+      "command": "uvx",
+      "args": ["awslabs.eks-mcp-server@latest"],
+      "env": {
+        "FASTMCP_LOG_LEVEL": "ERROR"
+      }
+    }
+  }
+}
+```
+
+### AWS Documentation MCP Server
+
+Used during assessment to look up documentation:
+
+```json
+{
+  "mcpServers": {
+    "awslabs.aws-documentation-mcp-server": {
+      "command": "uvx",
+      "args": ["awslabs.aws-documentation-mcp-server@latest"],
+      "env": {
+        "FASTMCP_LOG_LEVEL": "ERROR"
+      }
+    }
+  }
+}
+```
 
 ### Customization
 
-To use a specific AWS profile or region, update the `--profile` and `--region` arguments in `.mcp.json`.
+To use a specific AWS profile or region, update the `env` block:
+
+```json
+"env": {
+  "AWS_PROFILE": "your-profile",
+  "AWS_REGION": "us-west-2",
+  "FASTMCP_LOG_LEVEL": "ERROR"
+}
+```
+
+> **Already have these MCP servers?** If you already have them configured globally or in another project, you can skip this step. Project-level configs in `.mcp.json` are additive — they won't overwrite your existing servers.
 
 ## Required Permissions
 
 ### AWS IAM
 
-Minimum IAM permissions (read-only):
+Minimum IAM permissions:
 
 ```
 eks:ListClusters, eks:DescribeCluster, eks:ListNodegroups,
@@ -156,62 +204,9 @@ iam:GetRole, iam:ListAttachedRolePolicies,
 iam:ListRolePolicies, iam:GetRolePolicy
 ```
 
-<details>
-<summary><strong>Full IAM policy JSON</strong></summary>
-
-```json
-{
-  "Version": "2012-10-17",
-  "Statement": [
-    {
-      "Sid": "EKSReadAccess",
-      "Effect": "Allow",
-      "Action": [
-        "eks:DescribeCluster",
-        "eks:ListClusters",
-        "eks:ListNodegroups",
-        "eks:DescribeNodegroup",
-        "eks:ListAddons",
-        "eks:DescribeAddon",
-        "eks:DescribeAddonVersions",
-        "eks:ListInsights",
-        "eks:DescribeInsight",
-        "eks:ListAccessEntries",
-        "eks:DescribeAccessEntry"
-      ],
-      "Resource": "*"
-    },
-    {
-      "Sid": "EC2ReadAccess",
-      "Effect": "Allow",
-      "Action": [
-        "ec2:DescribeSubnets",
-        "ec2:DescribeSecurityGroupRules"
-      ],
-      "Resource": "*"
-    },
-    {
-      "Sid": "IAMReadAccess",
-      "Effect": "Allow",
-      "Action": [
-        "iam:GetRole",
-        "iam:ListAttachedRolePolicies",
-        "iam:ListRolePolicies",
-        "iam:GetRolePolicy"
-      ],
-      "Resource": "*"
-    }
-  ]
-}
-```
-
-</details>
-
 ### Kubernetes RBAC
 
 Your IAM identity needs read access to Kubernetes resources (Nodes, Pods, Deployments, Services, etc.) via an [EKS access entry](https://docs.aws.amazon.com/eks/latest/userguide/access-entries.html) or `aws-auth` ConfigMap.
-
-Recommended: `AmazonEKSClusterAdminPolicy` or `AmazonEKSAdminViewPolicy` access policy.
 
 ## Limitations
 
@@ -221,63 +216,59 @@ Recommended: `AmazonEKSClusterAdminPolicy` or `AmazonEKSAdminViewPolicy` access 
 
 ## Troubleshooting
 
-<details>
-<summary><strong>Cannot list clusters</strong></summary>
+**MCP server not responding**
 
-1. Check credentials: `aws sts get-caller-identity`
-2. Check region: `aws eks list-clusters --region <region>`
-3. Run permission check: `./tools/check_permissions.sh`
+1. Check Python and uv are installed: `uv --version`
+2. Check AWS credentials: `aws sts get-caller-identity`
+3. Test the MCP server directly: `uvx awslabs.eks-mcp-server@latest`
+4. Check `.mcp.json` — ensure `AWS_PROFILE` and `AWS_REGION` match your environment
 
-</details>
+**No clusters found**
 
-<details>
-<summary><strong>Permission denied errors</strong></summary>
+The skill lists clusters in the region configured in your AWS credentials. To target a different region, set `AWS_REGION` in the MCP server's `env` config or your environment.
 
-Run the permission check script — it will tell you exactly which permissions are missing:
+**Permission denied errors**
+
+Run the permission check script:
 
 ```bash
 ./tools/check_permissions.sh <cluster-name> <region>
 ```
 
-Ensure your IAM identity has the permissions listed in [Required Permissions](#required-permissions) and has a Kubernetes RBAC binding via [EKS access entry](https://docs.aws.amazon.com/eks/latest/userguide/access-entries.html) or `aws-auth` ConfigMap.
+It will tell you exactly which permissions are missing.
 
-</details>
+**kubectl works but MCP server can't access Kubernetes API**
 
-<details>
-<summary><strong>No clusters found</strong></summary>
-
-The skill lists clusters in the region configured in your AWS credentials. Check your `AWS_REGION` and `AWS_PROFILE`, then verify: `aws eks list-clusters --region <region>`
-
-</details>
-
-<details>
-<summary><strong>MCP server not responding</strong></summary>
-
-1. Check Python and uv are installed: `uv --version`
-2. Check AWS credentials: `aws sts get-caller-identity`
-3. Verify `--profile` and `--region` in `.mcp.json` match your environment
-
-</details>
+The MCP server runs in its own process and doesn't inherit your shell environment. Ensure `AWS_PROFILE` and `AWS_REGION` are set in the MCP server's `env` config in `.mcp.json`.
 
 ## Project Structure
 
 ```
-.claude/skills/eks-upgrade/
-  SKILL.md                       # Skill definition & workflow
-  steering/                      # Per-section assessment instructions
-    version-validation.md
-    breaking-changes.md
-    deprecated-apis.md
-    addon-compatibility.md
-    node-readiness.md
-    workload-risks.md
-    upgrade-insights.md
-    report-generation.md
-  data/
-    oss_addon_matrix.json        # OSS add-on compatibility matrix
-  tools/
-    check_permissions.sh         # Permission validation script
-    md_to_html.py                # Markdown → HTML converter
+eks-upgrade-skill/
+├── README.md                         # This file
+├── .claude/
+│   └── skills/
+│       └── eks-upgrade/
+│           ├── SKILL.md              # Skill definition & agent workflow
+│           ├── steering/             # Assessment logic (agent instructions)
+│           │   ├── version-validation.md
+│           │   ├── breaking-changes.md
+│           │   ├── deprecated-apis.md
+│           │   ├── addon-compatibility.md
+│           │   ├── node-readiness.md
+│           │   ├── workload-risks.md
+│           │   ├── upgrade-insights.md
+│           │   └── report-generation.md
+│           ├── data/
+│           │   └── oss_addon_matrix.json
+│           └── tools/
+│               ├── check_permissions.sh
+│               └── md_to_html.py
+├── tools/
+│   ├── md_to_html.py                 # Markdown → HTML converter
+│   └── check_permissions.sh          # Pre-flight permission validator
+└── data/
+    └── oss_addon_matrix.json         # OSS add-on compatibility matrix
 ```
 
 ## Contributing
