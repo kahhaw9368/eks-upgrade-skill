@@ -218,6 +218,10 @@ Example: `EKS-Upgrade-Assessment-my-cluster-1.30-to-1.31-2026-03-26-1430.md`
 
 ### Report Template
 
+The report follows a **Summary → Evidence → Context → Actions** structure.
+Present the data/findings first so the reader understands the cluster state,
+then conclude with what to do about it.
+
 ```markdown
 # EKS Upgrade Readiness Assessment
 
@@ -253,6 +257,35 @@ Example: `EKS-Upgrade-Assessment-my-cluster-1.30-to-1.31-2026-03-26-1430.md`
 
 ---
 
+## Add-on Inventory
+
+| Add-on | Type | Version | Status | Compatible |
+|--------|------|---------|--------|------------|
+| [name] | Managed/Self-managed | [ver] | [health] | ✅/⚠️/❌ |
+
+## Node Group Summary
+
+| Node Group | Version | AMI Type | Instances | Skew | Status |
+|------------|---------|----------|-----------|------|--------|
+| [name] | [ver] | [ami] | [min/max] | [N] | ✅/⚠️/❌ |
+
+## Workload Risk Summary
+
+| Risk | Severity | Count | Details |
+|------|----------|-------|---------|
+| Single replica deployments | HIGH | [N] | [names] |
+| Missing PDBs | MEDIUM | [N] | [names] |
+| Missing readiness probes | MEDIUM | [N] | [names] |
+| Missing resource requests | HIGH | [N]% | [percentage] |
+
+---
+
+## Informational Findings
+
+[LOW severity items and behavioral changes — awareness only.]
+
+---
+
 ## Blockers & Critical Actions
 
 [Items that MUST be resolved before upgrading. Empty section if none.]
@@ -277,12 +310,6 @@ Example: `EKS-Upgrade-Assessment-my-cluster-1.30-to-1.31-2026-03-26-1430.md`
 - **Severity:** MEDIUM
 - **What we found:** [details]
 - **Remediation:** [steps]
-
----
-
-## Informational Findings
-
-[LOW severity items and behavioral changes — awareness only.]
 
 ---
 
@@ -328,29 +355,6 @@ kubectl get pods -A | grep -v Running | grep -v Completed
 ## AWS Reference Links
 
 [All links verified via web search or AWS documentation. Do NOT fabricate URLs.]
-
----
-
-## Add-on Inventory
-
-| Add-on | Type | Version | Status | Compatible |
-|--------|------|---------|--------|------------|
-| [name] | Managed/Self-managed | [ver] | [health] | ✅/⚠️/❌ |
-
-## Node Group Summary
-
-| Node Group | Version | AMI Type | Instances | Skew | Status |
-|------------|---------|----------|-----------|------|--------|
-| [name] | [ver] | [ami] | [min/max] | [N] | ✅/⚠️/❌ |
-
-## Workload Risk Summary
-
-| Risk | Severity | Count | Details |
-|------|----------|-------|---------|
-| Single replica deployments | HIGH | [N] | [names] |
-| Missing PDBs | MEDIUM | [N] | [names] |
-| Missing readiness probes | MEDIUM | [N] | [names] |
-| Missing resource requests | HIGH | [N]% | [percentage] |
 ```
 
 ## Step 5: Look Up AWS References
