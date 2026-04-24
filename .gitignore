@@ -12,9 +12,6 @@ venv/
 # Local Claude Code settings (contains user-specific permissions)
 .claude/settings.local.json
 
-# MCP server config (users configure their own region/profile)
-.mcp.json
-
 # Generated assessment reports
 EKS-Upgrade-Assessment-*
 

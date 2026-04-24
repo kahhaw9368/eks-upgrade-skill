@@ -57,32 +57,14 @@ The skill calculates a weighted readiness score:
    - `ec2:DescribeSubnets`
    - `iam:GetRole`, `iam:ListAttachedRolePolicies`, `iam:ListRolePolicies`, `iam:GetRolePolicy`
 
-### MCP Server Setup (Optional but Recommended)
+### MCP Server Setup
 
-This skill can optionally use two MCP servers for enhanced functionality. Configure them in `.claude/settings.json`:
+This skill uses two MCP servers, both pre-configured in `.mcp.json` at the project root:
 
-```json
-{
-  "mcpServers": {
-    "awslabs.eks-mcp-server": {
-      "command": "uvx",
-      "args": ["awslabs.eks-mcp-server@latest"],
-      "env": {
-        "FASTMCP_LOG_LEVEL": "ERROR"
-      }
-    },
-    "awslabs.aws-documentation-mcp-server": {
-      "command": "uvx",
-      "args": ["awslabs.aws-documentation-mcp-server@latest"],
-      "env": {
-        "FASTMCP_LOG_LEVEL": "ERROR"
-      }
-    }
-  }
-}
-```
+- `awslabs.eks-mcp-server` — connects to your EKS cluster
+- `awslabs.aws-documentation-mcp-server` — looks up AWS documentation during assessment
 
-If MCP servers are not available, the skill falls back to AWS CLI and kubectl commands.
+On first launch, Claude Code will prompt you to enable both servers. If MCP servers are not available, the skill falls back to AWS CLI and kubectl commands.
 
 ### Configuration
 

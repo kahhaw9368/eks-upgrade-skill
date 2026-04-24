@@ -8,7 +8,9 @@ A [Claude Code](https://claude.ai/claude-code) skill that performs automated EKS
 
 Checks are informed by the [EKS Best Practices Guide](https://docs.aws.amazon.com/eks/latest/best-practices/) and [EKS User Guide](https://docs.aws.amazon.com/eks/latest/userguide/). All operations are **read-only** — the skill does not modify your cluster.
 
-![Sample EKS Upgrade Readiness Report](docs/sample-report-summary.png)
+<p align="center">
+  <img src="docs/sample-report-summary.png" alt="Sample EKS Upgrade Readiness Report" width="720">
+</p>
 
 ## Table of Contents
 
@@ -36,10 +38,15 @@ Checks are informed by the [EKS Best Practices Guide](https://docs.aws.amazon.co
 ### Quick Start
 
 ```bash
-git clone https://github.com/<your-org>/eks-upgrade-skill.git
+git clone https://github.com/kahhaw9368/eks-upgrade-skill.git
 cd eks-upgrade-skill
 claude
 ```
+
+On first launch, Claude Code will prompt you to enable two MCP servers from `.mcp.json`. **Enable both** — they are required for the skill to work:
+
+- `awslabs.eks-mcp-server` — connects to your EKS cluster
+- `awslabs.aws-documentation-mcp-server` — looks up AWS documentation during assessment
 
 Then run:
 
@@ -74,9 +81,13 @@ Run the permission check script to validate everything is set up correctly:
 | 07 | AWS Upgrade Insights | Official EKS pre-upgrade checks and recommendations |
 | 08 | Upgrade Plan | Pre-filled CLI commands with your cluster name and region |
 
-**Sample findings detail**
-
-![Detailed Findings by Section](docs/sample-report-findings.png)
+<details>
+<summary><strong>Sample findings detail</strong></summary>
+<br>
+<p align="center">
+  <img src="docs/sample-report-findings.png" alt="Detailed Findings by Section" width="720">
+</p>
+</details>
 
 ## Readiness Score
 
@@ -101,82 +112,50 @@ Each report includes a readiness score, score breakdown, blockers & critical act
 
 To convert to HTML: `python3 .claude/skills/eks-upgrade/tools/md_to_html.py <report>.md` (zero external dependencies).
 
-**Sample upgrade plan**
-
-![Sample Upgrade Plan](docs/sample-report-upgrade-plan.png)
+<details>
+<summary><strong>Sample upgrade plan</strong></summary>
+<br>
+<p align="center">
+  <img src="docs/sample-report-upgrade-plan.png" alt="Sample Upgrade Plan" width="720">
+</p>
+</details>
 
 ## MCP Server Setup
 
-This skill uses MCP servers to interact with your cluster. Configure them in `.mcp.json` at the project root.
+This skill uses two MCP servers, both pre-configured in `.mcp.json`. No setup is needed for the default configuration — just clone and run.
 
-### EKS MCP Server
+<details>
+<summary><strong>Switching to the AWS-Managed EKS MCP Server</strong></summary>
 
-**Option A: AWS-Managed EKS MCP Server (Recommended)**
-
-The [AWS-managed EKS MCP server](https://docs.aws.amazon.com/eks/latest/userguide/eks-mcp-introduction.html) is a hosted service with automatic updates, CloudTrail audit logging, and a built-in troubleshooting knowledge base.
+The default uses the [open-source EKS MCP server](https://github.com/awslabs/mcp). If your team needs CloudTrail audit logging, automatic updates, or the built-in troubleshooting knowledge base, you can switch to the [AWS-managed EKS MCP server](https://docs.aws.amazon.com/eks/latest/userguide/eks-mcp-introduction.html) instead.
 
 1. Attach the `AmazonEKSMCPReadOnlyAccess` managed policy to your IAM user/role.
-2. Update `.mcp.json` (replace `{region}` with your AWS region):
+2. Replace the `awslabs.eks-mcp-server` block in `.mcp.json` (replace `{region}` with your AWS region):
 
 ```json
-{
-  "mcpServers": {
-    "eks-mcp": {
-      "command": "uvx",
-      "args": [
-        "mcp-proxy-for-aws@latest",
-        "https://eks-mcp.{region}.api.aws/mcp",
-        "--service", "eks-mcp",
-        "--profile", "default",
-        "--region", "{region}",
-        "--read-only"
-      ]
-    }
-  }
+"awslabs.eks-mcp-server": {
+  "command": "uvx",
+  "args": [
+    "mcp-proxy-for-aws@latest",
+    "https://eks-mcp.{region}.api.aws/mcp",
+    "--service", "eks-mcp",
+    "--profile", "default",
+    "--region", "{region}",
+    "--read-only"
+  ]
 }
 ```
+
+> **Important:** The server name (`"awslabs.eks-mcp-server"`) must stay exactly as shown. Claude Code uses this name to route tool calls — changing it will prevent the skill from working.
 
 See the [Getting Started guide](https://docs.aws.amazon.com/eks/latest/userguide/eks-mcp-getting-started.html) for full setup instructions.
 
-**Option B: Open-Source EKS MCP Server**
+</details>
 
-The [awslabs.eks-mcp-server](https://github.com/awslabs/mcp) works out of the box with no additional IAM setup.
+<details>
+<summary><strong>Using a specific AWS profile or region</strong></summary>
 
-```json
-{
-  "mcpServers": {
-    "awslabs.eks-mcp-server": {
-      "command": "uvx",
-      "args": ["awslabs.eks-mcp-server@latest"],
-      "env": {
-        "FASTMCP_LOG_LEVEL": "ERROR"
-      }
-    }
-  }
-}
-```
-
-### AWS Documentation MCP Server
-
-Used during assessment to look up documentation:
-
-```json
-{
-  "mcpServers": {
-    "awslabs.aws-documentation-mcp-server": {
-      "command": "uvx",
-      "args": ["awslabs.aws-documentation-mcp-server@latest"],
-      "env": {
-        "FASTMCP_LOG_LEVEL": "ERROR"
-      }
-    }
-  }
-}
-```
-
-### Customization
-
-To use a specific AWS profile or region, update the `env` block:
+Update the `env` block for the EKS MCP server in `.mcp.json`:
 
 ```json
 "env": {
@@ -186,7 +165,17 @@ To use a specific AWS profile or region, update the `env` block:
 }
 ```
 
-> **Already have these MCP servers?** If you already have them configured globally or in another project, you can skip this step. Project-level configs in `.mcp.json` are additive — they won't overwrite your existing servers.
+</details>
+
+<details>
+<summary><strong>Already have MCP servers configured globally?</strong></summary>
+
+Claude Code merges MCP config from global (`~/.claude/settings.json`) and project (`.mcp.json`) levels. If you already have an EKS MCP server configured globally:
+
+- **Same server name** (`awslabs.eks-mcp-server` in both) — the project config takes precedence. No action needed.
+- **Different server name** (e.g., `eks-mcp` globally) — both servers will run. Disable the duplicate to avoid conflicts.
+
+</details>
 
 ## Required Permissions
 
@@ -204,6 +193,8 @@ iam:GetRole, iam:ListAttachedRolePolicies,
 iam:ListRolePolicies, iam:GetRolePolicy
 ```
 
+> **Tip:** If using the AWS-managed EKS MCP server, attach the `AmazonEKSMCPReadOnlyAccess` managed policy instead.
+
 ### Kubernetes RBAC
 
 Your IAM identity needs read access to Kubernetes resources (Nodes, Pods, Deployments, Services, etc.) via an [EKS access entry](https://docs.aws.amazon.com/eks/latest/userguide/access-entries.html) or `aws-auth` ConfigMap.
@@ -216,18 +207,25 @@ Your IAM identity needs read access to Kubernetes resources (Nodes, Pods, Deploy
 
 ## Troubleshooting
 
-**MCP server not responding**
+<details>
+<summary><strong>MCP server not responding</strong></summary>
 
 1. Check Python and uv are installed: `uv --version`
 2. Check AWS credentials: `aws sts get-caller-identity`
 3. Test the MCP server directly: `uvx awslabs.eks-mcp-server@latest`
-4. Check `.mcp.json` — ensure `AWS_PROFILE` and `AWS_REGION` match your environment
+4. Verify `AWS_PROFILE` and `AWS_REGION` in `.mcp.json` match your environment
 
-**No clusters found**
+</details>
 
-The skill lists clusters in the region configured in your AWS credentials. To target a different region, set `AWS_REGION` in the MCP server's `env` config or your environment.
+<details>
+<summary><strong>No clusters found</strong></summary>
 
-**Permission denied errors**
+The skill lists clusters in the region configured in your AWS credentials. To target a different region, set `AWS_REGION` in `.mcp.json` or your environment.
+
+</details>
+
+<details>
+<summary><strong>Permission denied errors</strong></summary>
 
 Run the permission check script:
 
@@ -237,9 +235,14 @@ Run the permission check script:
 
 It will tell you exactly which permissions are missing.
 
-**kubectl works but MCP server can't access Kubernetes API**
+</details>
+
+<details>
+<summary><strong>kubectl works but MCP server can't access Kubernetes API</strong></summary>
 
 The MCP server runs in its own process and doesn't inherit your shell environment. Ensure `AWS_PROFILE` and `AWS_REGION` are set in the MCP server's `env` config in `.mcp.json`.
+
+</details>
 
 ## Project Structure
 
@@ -248,6 +251,7 @@ eks-upgrade-skill/
 ├── README.md                         # This file
 ├── LICENSE                           # Apache 2.0 license
 ├── SECURITY.md                       # Security policy & responsible disclosure
+├── .mcp.json                         # MCP server configuration
 ├── docs/                             # Sample report screenshots
 │   ├── sample-report-summary.png
 │   ├── sample-report-findings.png
@@ -274,7 +278,7 @@ eks-upgrade-skill/
 
 ## Contributing
 
-Contributions are welcome. Please [open an issue](https://github.com/<your-org>/eks-upgrade-skill/issues) first to discuss what you'd like to change.
+Contributions are welcome. Please [open an issue](https://github.com/kahhaw9368/eks-upgrade-skill/issues) first to discuss what you'd like to change.
 
 ## Security
 
