@@ -189,9 +189,11 @@ Your IAM identity needs read access to Kubernetes resources (Nodes, Pods, Deploy
 
 ## Limitations
 
-- **One cluster at a time** — run the skill again for additional clusters.
 - **Point-in-time snapshot** — reflects cluster state at the time of the run; does not monitor ongoing changes.
 - **Requires cluster access** — your IAM identity must have both AWS API permissions and Kubernetes RBAC access.
+- **OSS add-on detection relies on standard labels or recognizable images.** Add-ons installed via Kustomize without labels, pulled from private/mirrored registries, or repackaged by vendors (OpenShift, Rancher, EKS Blueprints) may not be identified. These are surfaced in the report's "Unidentified Workloads" table rather than silently skipped — review them manually.
+- **Compatibility is verified live against upstream documentation, not a shipped matrix.** When upstream sources are unreachable or ambiguous, the add-on is reported as `UNKNOWN` rather than assumed compatible. This is by design — stale compatibility data is worse than no data.
+- **In-house operators and proprietary workloads are not assessed.** The skill can see them running but cannot verify their compatibility with the target Kubernetes version. Check those yourself before upgrading.
 
 ## Troubleshooting
 
