@@ -202,16 +202,40 @@ Include this table in the report under "Score Breakdown" so users can audit the 
 
 ## Step 3: Consistency Checks (MANDATORY)
 
+### 3.1 Structural contract (check FIRST, before content checks)
+
+Before returning the report, verify it contains exactly these top-level sections
+in this order:
+
+1. `# EKS Upgrade Readiness Assessment`
+2. `## Readiness Score: ...`
+3. `## Blockers & Critical Actions`
+4. `## Recommended Actions`
+5. `## Informational Findings`
+6. `## Evidence`
+7. `## Upgrade Plan`
+8. `## AWS Reference Links`
+
+If ANY of sections 3, 4, 5, 7, or 8 is missing, the report is invalid — add the
+missing section (with "No blockers identified." / "No recommended actions." /
+"None." placeholder text if empty) before returning it to the user.
+
+Sections 3, 4, and 5 MUST appear before section 6 (Evidence). If they appear
+after Evidence, the report is invalid — reorder before returning.
+
+### 3.2 Content checks
+
 1. Every HIGH/CRITICAL finding must appear in "Blockers & Critical Actions"
 2. Every MEDIUM finding must appear in "Recommended Actions"
-3. The executive summary must match the findings — don't call something critical if it's medium
-4. Score components must add up correctly
-5. **CROSS-CHECK RULE:** Before writing any count (e.g., "5 deployments missing probes"),
+3. Every LOW finding must appear in "Informational Findings"
+4. The executive summary must match the findings — don't call something critical if it's medium
+5. Score components must add up correctly
+6. **CROSS-CHECK RULE:** Before writing any count (e.g., "5 deployments missing probes"),
    go back to the raw data and list the names. If the count of names doesn't match the number
    in your heading, fix it. Never write a count from memory.
-6. **NO HALLUCINATED NUMBERS:** For any dollar amount, percentage, or numeric claim, show the
+7. **NO HALLUCINATED NUMBERS:** For any dollar amount, percentage, or numeric claim, show the
    arithmetic inline or in a comment. If you can't show the math, don't state the number.
-7. **WORKLOAD TABLE REQUIRED:** The master workload table from `workload-risks.md` Step A
+8. **WORKLOAD TABLE REQUIRED:** The master workload table from `workload-risks.md` Step A
    MUST be produced before any workload risk findings are written. All workload counts in the
    report must be traceable to rows in that table.
 
@@ -224,9 +248,31 @@ Example: `EKS-Upgrade-Assessment-my-cluster-1.30-to-1.31-2026-03-26-1430.md`
 
 ### Report Template
 
-The report follows a **Summary → Evidence → Context → Actions** structure.
-Present the data/findings first so the reader understands the cluster state,
-then conclude with what to do about it.
+**The report structure is a contract, not a suggestion.** Every report MUST contain
+the sections below, in exactly this order, with exactly these headings. Do not
+reorder, rename, or omit required sections. Sections marked OPTIONAL are included
+only when their condition is met; if the condition isn't met, omit the section
+entirely (do not leave it as "N/A" or "None found").
+
+**Required section order (every report, every time):**
+
+1. `# EKS Upgrade Readiness Assessment` — title + metadata table
+2. `## Readiness Score: XX% — [LEVEL]` — summary sentence + Score Breakdown table
+3. `## Blockers & Critical Actions` — MUST appear even if empty (write "No blockers identified.")
+4. `## Recommended Actions` — MUST appear even if empty (write "No recommended actions.")
+5. `## Informational Findings` — MUST appear even if empty (write "None.")
+6. `## Evidence` — container for the detailed tables below
+   - `### Add-on Inventory`
+   - `### Unknown & Unidentified Add-ons` — OPTIONAL (only if any UNKNOWN_* verdicts exist)
+   - `### Node Group Summary`
+   - `### Workload Risk Summary`
+7. `## Upgrade Plan` — always required
+8. `## AWS Reference Links` — always required
+
+The three action sections (Blockers, Recommended, Informational) come BEFORE the
+Evidence tables. This is intentional — readers open the report to answer "what do
+I need to do?", not "what did the tool find?". Evidence supports the action items;
+it doesn't precede them.
 
 ```markdown
 # EKS Upgrade Readiness Assessment
@@ -263,62 +309,9 @@ then conclude with what to do about it.
 
 ---
 
-## Add-on Inventory
-
-| Add-on | Type | Version | Status | Verdict | Source |
-|--------|------|---------|--------|---------|--------|
-| [name] | Managed/Self-managed/OSS | [ver] | [health] | COMPATIBLE/UPDATE_RECOMMENDED/INCOMPATIBLE/UNKNOWN_VERIFIABLE | [URL or "managed"] |
-
-## Unknown & Unidentified Add-ons
-
-Include this section if ANY add-on has verdict `UNKNOWN_VERIFIABLE` or `UNKNOWN_UNIDENTIFIED`.
-Omit the section entirely if everything was resolved.
-
-### Compatibility Unverified (UNKNOWN_VERIFIABLE)
-
-Add-ons the skill identified but could not verify against the target Kubernetes
-version. The user must check these manually before upgrading.
-
-| Add-on | Version | URL(s) Consulted | Why Unverified |
-|--------|---------|------------------|----------------|
-| [name] | [ver] | [url] | [e.g., page 404, no compat matrix found, ambiguous wording] |
-
-### Unidentified Workloads (UNKNOWN_UNIDENTIFIED)
-
-Workloads that appear to be add-ons (based on namespace or shape) but could not be
-identified. The user likely knows what these are — please review and confirm
-compatibility with the target version manually.
-
-| Kind | Name | Namespace | Image | Labels |
-|------|------|-----------|-------|--------|
-| [Deployment/DaemonSet/StatefulSet] | [name] | [ns] | [full image:tag] | [key labels present] |
-
-## Node Group Summary
-
-| Node Group | Version | AMI Type | Instances | Skew | Status |
-|------------|---------|----------|-----------|------|--------|
-| [name] | [ver] | [ami] | [min/max] | [N] | ✅/⚠️/❌ |
-
-## Workload Risk Summary
-
-| Risk | Severity | Count | Details |
-|------|----------|-------|---------|
-| Single replica deployments | HIGH | [N] | [names] |
-| Missing PDBs | MEDIUM | [N] | [names] |
-| Missing readiness probes | MEDIUM | [N] | [names] |
-| Missing resource requests | HIGH | [N]% | [percentage] |
-
----
-
-## Informational Findings
-
-[LOW severity items and behavioral changes — awareness only.]
-
----
-
 ## Blockers & Critical Actions
 
-[Items that MUST be resolved before upgrading. Empty section if none.]
+[Items that MUST be resolved before upgrading. If none, write: "No blockers identified."]
 
 ### [Finding Title]
 - **Severity:** HIGH/CRITICAL
@@ -334,12 +327,67 @@ compatibility with the target version manually.
 
 ## Recommended Actions
 
-[Items that SHOULD be addressed but won't block the upgrade.]
+[Items that SHOULD be addressed but won't block the upgrade. If none, write: "No recommended actions."]
 
 ### [Finding Title]
 - **Severity:** MEDIUM
 - **What we found:** [details]
 - **Remediation:** [steps]
+
+---
+
+## Informational Findings
+
+[LOW severity items and behavioral changes — awareness only. If none, write: "None."]
+
+---
+
+## Evidence
+
+### Add-on Inventory
+
+| Add-on | Type | Version | Status | Verdict | Source |
+|--------|------|---------|--------|---------|--------|
+| [name] | Managed/Self-managed/OSS | [ver] | [health] | COMPATIBLE/UPDATE_RECOMMENDED/INCOMPATIBLE/UNKNOWN_VERIFIABLE | [URL or "managed"] |
+
+### Unknown & Unidentified Add-ons
+
+Include this subsection only if ANY add-on has verdict `UNKNOWN_VERIFIABLE` or
+`UNKNOWN_UNIDENTIFIED`. Omit it entirely if everything was resolved.
+
+#### Compatibility Unverified (UNKNOWN_VERIFIABLE)
+
+Add-ons the skill identified but could not verify against the target Kubernetes
+version. The user must check these manually before upgrading.
+
+| Add-on | Version | URL(s) Consulted | Why Unverified |
+|--------|---------|------------------|----------------|
+| [name] | [ver] | [url] | [e.g., page 404, no compat matrix found, ambiguous wording] |
+
+#### Unidentified Workloads (UNKNOWN_UNIDENTIFIED)
+
+Workloads that appear to be add-ons (based on namespace or shape) but could not be
+identified. The user likely knows what these are — please review and confirm
+compatibility with the target version manually.
+
+| Kind | Name | Namespace | Image | Labels |
+|------|------|-----------|-------|--------|
+| [Deployment/DaemonSet/StatefulSet] | [name] | [ns] | [full image:tag] | [key labels present] |
+
+### Node Group Summary
+
+| Node Group | Version | AMI Type | Instances | Skew | Status |
+|------------|---------|----------|-----------|------|--------|
+| [name] | [ver] | [ami] | [min/max] | [N] | ✅/⚠️/❌ |
+
+### Workload Risk Summary
+
+| Risk | Severity | Count | Details |
+|------|----------|-------|---------|
+| Single replica deployments | HIGH | [N] | [names] |
+| Missing PDBs | MEDIUM | [N] | [names] |
+| Missing readiness probes | MEDIUM | [N] | [names] |
+| Missing resource requests | HIGH | [N]% | [percentage] |
 
 ---
 
